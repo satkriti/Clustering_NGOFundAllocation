@@ -1,0 +1,231 @@
+#get current working directory
+getwd()
+
+# install packages
+install.packages("GGally") # correlation matrix
+install.packages("cluster")
+install.packages("purrr")
+install.packages("dendextend")
+install.packages("ggcorrplot") # correlation 
+install.packages("DataExplorer") # beautiful ways of exploring our data
+install.packages("factoextra") # cluster and visualization
+install.packages("gridExtra") # for grid arrange
+
+# import library
+library(tidyverse) 
+library(GGally)
+library(cluster)
+library(purrr)
+library(dendextend)
+library(ggcorrplot)
+library(DataExplorer)
+library(factoextra)
+library(gridExtra)
+
+#DATA SELECTION - READING FILES INTO THE CURRENT SESSION
+data <- read_csv("Country-data.csv")
+meta_df1<-read.csv("data-dictionary.csv")
+
+#DATA EXPLORATION
+#get the structure of the dataset
+str(data)
+#get top 5 values
+head(data)
+#get summary
+summary(data)
+# Checking if there is missing values in the dataset
+plot_missing(data, ggtheme = theme_bw(),
+  title = "Missing Values")
+
+
+#OUTLIERS
+
+# Boxplot for all attributes except income and gdpp
+data %>%
+  gather(Attributes, values, c(2:4, c(2,3,4,5,7,8,9))) %>%
+  ggplot(aes(x=reorder(Attributes, values, FUN=median), y=values, fill=Attributes)) +
+  geom_boxplot(show.legend=FALSE) +
+  labs(title="Country Data - Boxplots") +
+  theme_bw() +
+  theme(axis.title.y=element_blank(),
+        axis.title.x=element_blank()) +
+  ylim(0, 210) +
+  coord_flip()
+
+# Boxplot for income and gdp
+data %>%
+  gather(Attributes, values, c(6,10)) %>%
+  ggplot(aes(x=reorder(Attributes, values, FUN=median), y=values, fill=Attributes)) +
+  geom_boxplot(show.legend=FALSE) +
+  labs(title="Country Data - Boxplots") +
+  theme_bw() +
+  theme(axis.title.y=element_blank(),
+        axis.title.x=element_blank()) +
+  ylim(0, 10000) +
+  coord_flip()
+
+# Histogram for each Attribute
+data %>%
+  gather(Attributes, value, 2:10) %>%
+  ggplot(aes(x=value, fill=Attributes)) +
+  geom_histogram(colour="white", show.legend=FALSE) +
+  facet_wrap(~Attributes, scales="free_x") +
+  labs(x="Values", y="Frequency",
+       title="Country Data - Histograms") +
+  theme_bw()
+
+# Computing a correlation matrix 
+corr <- round(cor(data[2:10]), 1)
+
+# Visualization of matrix
+ggcorrplot(corr, type = 'upper', outline.col = "white",
+           colors = c("#1679a1", "white", "#f8766d"),
+           lab = TRUE)
+
+#SCALE THE DATA
+data_df <- as.data.frame(data) # Transforming our main data in a data frame
+rownames(data_df) <- data_df[,1] # Changing our row names as countries
+data_df <- data_df[,-1] # Removing the countries column
+
+
+data_scale <- scale(data_df) # scaling the numeric variables
+head(data_scale)
+
+#Gap Analysis
+fviz_nbclust(data_scale, FUN = hcut, method = "gap_stat")
+
+#Silhouette Analysis
+fviz_nbclust(data_scale, FUN = hcut, method = "silhouette")
+
+#Elbow Analysis
+fviz_nbclust(data_scale, FUN = hcut, method = "wss")
+
+#K-means: Clustering, k = 2
+kmeans2_data <- kmeans(data_scale, centers = 2) # k of 2 based on the elbow analysis
+kmeans2_data #gives us a detailed summary output WCSS=30.1 %
+
+clust2_data <- kmeans2_data$cluster # Saving separate the cluster component
+
+data_kmeans2 <- mutate(data_df, group_kmeans = clust2_data) # Adding our clusters to the main data
+
+#check output of kmeans function
+str(kmeans2_data)
+
+mean_data_kmeans2 <- data_kmeans2 %>%
+  group_by(group_kmeans) %>% # Grouping by the respective country group
+  summarise(n = n(), # Listing all the variables and calculating their means
+            child_mort = mean(child_mort),
+            exports = mean(exports),
+            health = mean(health),
+            imports = mean(imports),
+            income = mean(income),
+            inflation = mean(inflation),
+            life_expec = mean(life_expec),
+            total_fer = mean(total_fer),
+            gdpp = mean(gdpp))
+
+mean_data_kmeans2
+
+g2 <- fviz_cluster(kmeans2_data, geom = "point", data = data_scale) + ggtitle("k = 2") + theme_bw()
+#plotting the graph
+plot(g2)
+
+
+#K-means: Clustering, k = 3
+kmeans3_data <- kmeans(data_scale, centers = 3) # k of 3 based on Gap statistics
+kmeans3_data #gives us a detailed summary output WCSS=44.7 %
+
+clust3_data <- kmeans3_data$cluster # Saving separate the cluster component
+data_kmeans3 <- mutate(data_df, group_kmeans = clust3_data) # Adding clusters to the main data
+#check output of kmeans function
+str(kmeans3_data)
+
+#Filtering countries using cluster number and calculating the kmean
+
+mean_data_kmeans3 <- data_kmeans3 %>%
+    group_by(group_kmeans) %>% # Grouping by the respective country group
+    summarise(n = n(), # Listing all the variables and calculating their means
+        child_mort = mean(child_mort),
+        exports = mean(exports),
+        health = mean(health),
+        imports = mean(imports),
+        income = mean(income),
+        inflation = mean(inflation),
+        life_expec = mean(life_expec),
+        total_fer = mean(total_fer),
+        gdpp = mean(gdpp))
+
+mean_data_kmeans3
+
+g3 <- fviz_cluster(kmeans3_data, geom = "point", data = data_scale) + ggtitle("k = 3") + theme_bw()
+#plotting graph
+plot(g3)
+
+#K-means: Clustering, k = 4
+kmeans4_data <- kmeans(data_scale, centers = 4) # k of 4 based on the elbow analysis
+kmeans4_data #gives us a detailed summary output WCSS=53.4 %
+
+clust4_data <- kmeans4_data$cluster # Saving separate the cluster component
+data_kmeans4 <- mutate(data_df, group_kmeans = clust4_data) # Adding clusters to the main data
+
+#check output of kmeans function
+str(kmeans4_data)
+
+
+mean_data_kmeans4 <- data_kmeans4 %>%
+  group_by(group_kmeans) %>% # Grouping by the respective country group
+  summarise(n = n(), # Listing all the variables and calculating their means
+            child_mort = mean(child_mort),
+            exports = mean(exports),
+            health = mean(health),
+            imports = mean(imports),
+            income = mean(income),
+            inflation = mean(inflation),
+            life_expec = mean(life_expec),
+            total_fer = mean(total_fer),
+            gdpp = mean(gdpp))
+
+mean_data_kmeans4 
+
+g4 <- fviz_cluster(kmeans4_data, geom = "point", data = data_scale) + ggtitle("k = 4") + theme_bw()
+#plotting graph
+plot(g4)
+
+#K-means: Clustering, k = 5
+kmeans5_data <- kmeans(data_scale, centers = 5) # k of 5 based on the elbow analysis
+kmeans5_data #gives us a detailed summary output WCSS=58.8 %
+
+clust5_data <- kmeans5_data$cluster # Saving separate the cluster component
+#clust5_data
+data_kmeans5 <- mutate(data_df, group_kmeans = clust5_data) # Adding clusters to the main data
+
+#check output of kmeans function
+str(kmeans5_data)
+
+mean_data_kmeans5 <- data_kmeans5 %>%
+  group_by(group_kmeans) %>% # Grouping by the respective country group
+  summarise(n = n(), # Listing all the variables and calculating their means
+            child_mort = mean(child_mort),
+            exports = mean(exports),
+            health = mean(health),
+            imports = mean(imports),
+            income = mean(income),
+            inflation = mean(inflation),
+            life_expec = mean(life_expec),
+            total_fer = mean(total_fer),
+            gdpp = mean(gdpp))
+
+mean_data_kmeans5
+
+g5 <- fviz_cluster(kmeans5_data, geom = "point", data = data_scale) + ggtitle("k = 5") + theme_bw()
+#plotting graph
+plot(g5)
+
+#selecting the cluster, where K=3 and cluster no = 3 (based on : mean_data_kmeans3 and WCSS value--> kmeans3_data$withinss)
+potential_countries <- filter(data_kmeans3, group_kmeans == 3)
+potential_countries
+
+#top 10 Countries List 
+final_list <- potential_countries[with(potential_countries,order(-child_mort)),]
+final_list[1:10,]
+
